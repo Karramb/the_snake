@@ -1,4 +1,4 @@
-from random import randrange
+from random import randrange, choice
 
 import pygame as pg
 
@@ -48,27 +48,29 @@ class GameObject:
         """Позиция оставлена, т.к. это требование pytest"""
         self.position = ((SCREEN_WIDTH // 2), (SCREEN_HEIGHT // 2))
 
-    def draw(self, position, body_color):
+    def draw_object(self, position, body_color):
         """Метод отрисовки"""
         rect = pg.Rect(position, (GRID_SIZE, GRID_SIZE))
         pg.draw.rect(screen, body_color, rect)
         pg.draw.rect(screen, BORDER_COLOR, rect, 1)
+
+    def draw():
+        """Метод отрисовки для переопределения в дочерних классах"""
+        pass
 
 
 class Apple(GameObject):
     """Дочерний класс для яблок"""
 
     def __init__(self):
-        self.position = ((SCREEN_WIDTH // 4), (SCREEN_HEIGHT // 4))
-        self.body_color = APPLE_COLOR
+        super().__init__(APPLE_COLOR)
+        self.randomize_position([(SCREEN_WIDTH // 2), (SCREEN_HEIGHT // 2)])
 
-    def randomize_position(self, snake_object):
+    def randomize_position(self, positions):
         """Метод задающий случайное значение для яблока не входящее в змею"""
         while True:
-            new_random_position = (randrange(0, 620, 20),
-                                   randrange(0, 460, 20))
-            if new_random_position not in snake_object.positions:
-                self.position = new_random_position
+            self.position = (randrange(0, 620, 20), randrange(0, 460, 20))
+            if self.position not in positions:
                 break
 
 
@@ -76,13 +78,12 @@ class Snake(GameObject):
     """Дочерний объект для Змеи"""
 
     def __init__(self, body_color=SNAKE_COLOR):
-        self.length = 1
-        self.direction = RIGHT
         self.next_direction = None
         super().__init__(body_color)
         self.position = ((SCREEN_WIDTH // 2), (SCREEN_HEIGHT // 2))
-        self.positions = [self.position]
         self.last = None
+        self.reset()
+        self.direction = RIGHT
 
     def update_direction(self):
         """Метод для обновления направления"""
@@ -92,21 +93,23 @@ class Snake(GameObject):
 
     def move(self):
         """Метод для движения змеи"""
-        self.head_position = self.get_head_position()
-        head_x, head_y = self.head_position[0], self.head_position[1]
-        direction_x, direction_y = self.direction[0], self.direction[1]
+        head_x, head_y = self.get_head_position()
+        direction_x, direction_y = self.direction
         self.position = (((head_x + (direction_x * GRID_SIZE)) % SCREEN_WIDTH),
                          ((head_y + (direction_y * GRID_SIZE))
                           % SCREEN_HEIGHT))
         self.positions.insert(0, self.position)
-        self.last = self.positions.pop()
+        if self.length < len(self.positions):
+            self.last = self.positions.pop()
+        else:
+            self.last = None
 
     def draw(self):
         """Метод для отрисовки змеи"""
         for position in self.positions[:-1]:
-            GameObject.draw(self, position, self.body_color)
+            GameObject.draw_object(self, position, self.body_color)
         # Отрисовка головы змейки
-        GameObject.draw(self, self.positions[0], self.body_color)
+        GameObject.draw_object(self, self.positions[0], self.body_color)
         # Затирание последнего сегмента
         if self.last:
             last_rect = pg.Rect(self.last, (GRID_SIZE, GRID_SIZE))
@@ -118,9 +121,10 @@ class Snake(GameObject):
 
     def reset(self):
         """Метод для перезапуска игры, если змея съела сама себя"""
-        self.direction = RIGHT
+        self.direction = choice([DOWN, UP, RIGHT, LEFT])
         self.next_direction = None
         self.positions = [self.position]
+        self.length = 1
 
 
 # Функция обработки действий пользователя
@@ -144,24 +148,6 @@ def handle_keys(game_object):
                 raise SystemExit
 
 
-def check_on_eat(snake_object, apple_object):
-    """Функция проверки съедено ли яблоко и\
-        если да - запуск метода randomize_position"""
-    if snake_object.get_head_position() == apple_object.position:
-        snake_object.positions.insert(0, apple_object.position)
-        apple_object.randomize_position(snake_object)
-
-
-def check_eat_itself(snake_object, apple_object):
-    """Функция проверки не съела ли змея сама себя"""
-    snake_object.head_position = snake_object.get_head_position()
-    if snake_object.head_position in snake_object.positions[
-            1:len(snake_object.positions)]:
-        snake_object.reset()
-        apple_object.randomize_position(snake_object)
-        screen.fill(BOARD_BACKGROUND_COLOR)
-
-
 def main():
     """Инициализация pg:"""
     pg.init()
@@ -174,13 +160,15 @@ def main():
         handle_keys(snake)
         snake.update_direction()
         snake.move()
-        """Не понял комментария про эти 2 функции - я могу написать эти условия
-        в коде, но какая разница и зачем, если с
-        функциями тело игры вылядит понятнее"""
-        check_eat_itself(snake, apple)
-        check_on_eat(snake, apple)
-        apple.draw(apple.position, apple.body_color)
+        if snake.positions[0] in snake.positions[1:len(snake.positions)]:
+            snake.reset()
+            apple.randomize_position(snake.positions)
+            screen.fill(BOARD_BACKGROUND_COLOR)
+        if snake.positions[0] == apple.position:
+            snake.positions.insert(0, apple.position)
+            apple.randomize_position(snake.positions)
         snake.draw()
+        apple.draw_object(apple.position, apple.body_color)
         pg.display.update()
 
 
